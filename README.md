@@ -22,7 +22,7 @@ After 8 years on Linux, I switched to Windows and got used to the convenience of
 
 <table>
 <tr>
-<td width="40%" align="center">
+<td width="50%" align="center">
   <img src="assets/calculator.png" width="300" />
 </td>
 <td width="60%" valign="middle">
@@ -32,7 +32,7 @@ Opens instantly with minimal latency when triggered via your hotkey, staying out
 </tr>
 
 <tr>
-<td width="60%" valign="middle">
+<td width="50%" valign="middle">
 <h2>📂 File Previews</h2>
 Preview text files and images directly from search results using high-quality system thumbnails.
 </td>
@@ -42,7 +42,7 @@ Preview text files and images directly from search results using high-quality sy
 </tr>
 
 <tr>
-<td width="40%" align="center">
+<td width="50%" align="center">
   <img src="assets/image_preview.png" width="300" />
 </td>
 <td width="60%" valign="middle">
@@ -52,7 +52,7 @@ Browse and inspect images without opening a separate application.
 </tr>
 
 <tr>
-<td width="60%" valign="middle">
+<td width="50%" valign="middle">
 <h2>🛠️ Built-in Engines</h2>
 Includes application search, calculator mode, web search suggestions, and terminal command execution.
 </td>
@@ -62,7 +62,7 @@ Includes application search, calculator mode, web search suggestions, and termin
 </tr>
 
 <tr>
-<td width="40%" align="center">
+<td width="50%" align="center">
   <img src="assets/plugins.png" width="300" />
 </td>
 <td width="60%" valign="middle">
@@ -72,7 +72,7 @@ Create search providers and integrations in Python, Node.js, Bash, or any langua
 </tr>
 
 <tr>
-<td width="60%" valign="middle">
+<td width="50%" valign="middle">
 <h2>🎨 Native GNOME Aesthetics</h2>
 Built with Libadwaita and designed to blend seamlessly with GNOME and popular themes like Tokyo Night, Dracula, Catppuccin, and Gruvbox.
 </td>
