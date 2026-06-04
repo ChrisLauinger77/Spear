@@ -16,14 +16,13 @@
 After 8 years on Linux, I switched to Windows and got used to the convenience of launchers like Raycast and Flow Launcher. Returning to Linux, I deeply missed that polished workflow and the unified look of macOS. Spear is my attempt to bring that premium experience to Linux, using GNOME because of its consistent design code and unified Libadwaita theming.
 
 ---
-## ✨ Features
 
 ## ✨ Features
 
 <table>
 <tr>
 <td width="50%" align="center">
-  <img src="assets/calculator.png" width="350" />
+  <img src="assets/calculator.png" width="400" />
 </td>
 <td width="60%" valign="middle">
 <h2>⚡ Lightning Fast</h2>
@@ -37,13 +36,13 @@ Opens instantly with minimal latency when triggered via your hotkey, staying out
 Preview text files and images directly from search results using high-quality system thumbnails.
 </td>
 <td width="40%" align="center">
-  <img src="assets/filemanager.png" width="350" />
+  <img src="assets/filemanager.png" width="400" />
 </td>
 </tr>
 
 <tr>
 <td width="50%" align="center">
-  <img src="assets/image_preview.png" width="350" />
+  <img src="assets/image_preview.png" width="400" />
 </td>
 <td width="60%" valign="middle">
 <h2>🖼️ Image Preview Engine</h2>
@@ -57,13 +56,13 @@ Browse and inspect images without opening a separate application.
 Includes application search, calculator mode, web search suggestions, and terminal command execution.
 </td>
 <td width="40%" align="center">
-  <img src="assets/preview.png" width="350" />
+  <img src="assets/preview.png" width="400" />
 </td>
 </tr>
 
 <tr>
 <td width="50%" align="center">
-  <img src="assets/plugins.png" width="350" />
+  <img src="assets/plugins.png" width="400" />
 </td>
 <td width="60%" valign="middle">
 <h2>🔌 Custom Plugins</h2>
@@ -77,7 +76,7 @@ Create search providers and integrations in Python, Node.js, Bash, or any langua
 Built with Libadwaita and designed to blend seamlessly with GNOME and popular themes like Tokyo Night, Dracula, Catppuccin, and Gruvbox.
 </td>
 <td width="40%" align="center">
-  <img src="assets/preview.png" width="350" />
+  <img src="assets/preview.png" width="400" />
 </td>
 </tr>
 </table>
