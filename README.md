@@ -15,9 +15,12 @@
 
 A blazingly fast, Raycast-like launcher for GNOME built with **Rust** and **Libadwaita**.
 
-Spear operates as a persistent background daemon, ensuring **0ms activation latency**. It features customizable themes, custom folder searches, image and text previews utilizing Nautilus-style system thumbnails, and a robust CLI client.
+---
+
+After 8 years on Linux, I switched to Windows and got used to the convenience of launchers like Raycast and Flow Launcher. Returning to Linux, I deeply missed that polished workflow and the unified look of macOS. Spear is my attempt to bring that premium experience to Linux, using GNOME because of its consistent design code and unified Libadwaita theming.
 
 ---
+
 
 ## 📐 Architecture & Code Design
 
