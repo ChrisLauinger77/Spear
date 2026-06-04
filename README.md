@@ -115,3 +115,8 @@ We plan to add more native features to Spear:
 
 ## 📄 License
 This project is licensed under the MIT License.
+
+---
+
+> [!NOTE]
+> Some parts of this project were developed with AI assistance, as I am new to Libadwaita and its toolkit.
