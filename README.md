@@ -250,3 +250,7 @@ We are planning to add several powerful native integration engines to Spear:
 
 ## 📄 License
 This project is licensed under the MIT License.
+
+---
+### Note
+The project was made with some AI assistance as I am still new to the new libadwaita toolkit
