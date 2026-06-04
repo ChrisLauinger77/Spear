@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/main.png" alt="Spear Launcher Main View" width="750" style="border-radius: 8px;" />
+  <img src="assets/main.png" alt="Spear Launcher Main View" width="100%" style="border-radius: 8px;" />
 </p>
 
 After 8 years on Linux, I switched to Windows and got used to the convenience of launchers like Raycast and Flow Launcher. Returning to Linux, I deeply missed that polished workflow and the unified look of macOS. Spear is my attempt to bring that premium experience to Linux, using GNOME because of its consistent design code and unified Libadwaita theming.
