@@ -19,7 +19,7 @@ After 8 years on Linux, I switched to Windows and got used to the convenience of
 
 ## ✨ Features
 
-- **⚡ Instant Toggle**: Opens immediately with zero latency when pressing your hotkey.
+- **⚡ Lightning fast**: Opens immediately with very low latency when pressing your hotkey.
 - **📂 File Previews**: Live text and image previews, using high-quality system thumbnails.
 - **🛠️ Built-in Engines**:
   - **Applications**: Search and open installed system apps.
@@ -115,8 +115,3 @@ We plan to add more native features to Spear:
 
 ## 📄 License
 This project is licensed under the MIT License.
-
----
-
-> [!NOTE]
-> Some parts of this project were developed with AI assistance, as I am new to Libadwaita and its toolkit.
