@@ -1,8 +1,9 @@
 <p align="center">
   <img src="assets/banner.jpg" alt="Spear Launcher Banner" width="100%" style="border-radius: 8px;" />
 </p>
-
-_The launcher GNOME didn't need. I did. You might as well._
+<p align="center">
+<italic>The launcher GNOME didn't need. I did. You might as well.</italic>
+<p align="center">
 
 <p align="center">
   <img src="https://img.shields.io/badge/Language-Rust-orange?style=for-the-badge&logo=rust" alt="Rust" />
