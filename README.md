@@ -16,8 +16,11 @@
 After 8 years on Linux, I switched to Windows and got used to the convenience of launchers like Raycast and Flow Launcher. Returning to Linux, I deeply missed that polished workflow and the unified look of macOS. Spear is my attempt to bring that premium experience to Linux, using GNOME because of its consistent design code and unified Libadwaita theming.
 
 ---
-
 ## ✨ Features
+
+<table>
+<tr>
+<td width="60%" valign="top">
 
 - **⚡ Lightning fast**: Opens immediately with very low latency when pressing your hotkey.
 - **📂 File Previews**: Live text and image previews, using high-quality system thumbnails.
@@ -28,6 +31,19 @@ After 8 years on Linux, I switched to Windows and got used to the convenience of
   - **Terminal Commands**: Execute commands directly with a `>` prefix.
 - **🔌 Custom Plugins**: Easily write search providers in any language (Python, Node.js, Bash).
 - **🎨 Native GNOME Aesthetics**: Integrates with Adwaita and popular custom themes (Tokyo Night, Dracula, Catppuccin, Gruvbox).
+
+</td>
+<td width="40%" align="center">
+
+<img src="assets/calculator.png" width="180" />
+<img src="assets/filemanager.png" width="180" />
+<img src="assets/image_preview.png" width="180" />
+<img src="assets/preview.png" width="180" />
+<img src="assets/plugins.png" width="180" />
+
+</td>
+</tr>
+</table>
 
 ---
 
