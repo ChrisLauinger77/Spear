@@ -35,11 +35,11 @@ After 8 years on Linux, I switched to Windows and got used to the convenience of
 </td>
 <td width="40%" align="center">
 
-<img src="assets/calculator.png" width="180" />
-<img src="assets/filemanager.png" width="180" />
-<img src="assets/image_preview.png" width="180" />
-<img src="assets/preview.png" width="180" />
-<img src="assets/plugins.png" width="180" />
+<img src="assets/calculator.png" width="250" />
+<img src="assets/filemanager.png" width="250" />
+<img src="assets/image_preview.png" width="250" />
+<img src="assets/preview.png" width="250" />
+<img src="assets/plugins.png" width="250" />
 
 </td>
 </tr>
