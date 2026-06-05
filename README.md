@@ -52,14 +52,14 @@ Preview text files and images directly from search results using high-quality sy
   <img src="assets/image_preview.png" width="400" />
 </td>
 <td width="60%" valign="middle">
-<h2>🖼️ Image Preview Engine</h2>
+<h2>🖼️ Image Preview</h2>
 Browse and inspect images without opening a separate application.
 </td>
 </tr>
 
 <tr>
 <td width="50%" valign="middle">
-<h2>🛠️ Built-in Engines</h2>
+<h2>🛠️ Built-in Plugins/Modes</h2>
 Includes application search, calculator mode, web search suggestions, and terminal command execution.
 </td>
 <td width="40%" align="center">
