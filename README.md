@@ -137,6 +137,7 @@ If you prefer to install Spear system-wide:
   ```
 - **Red Hat Package (`.rpm`)**:
   ```bash
+  cargo build --release
   cargo generate-rpm
   ```
 
