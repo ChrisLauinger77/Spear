@@ -92,6 +92,20 @@ Built with Libadwaita and designed to blend seamlessly with GNOME and popular th
 
 ## 🚀 Installation
 
+### Prerequisites
+
+Install Rust and the native GTK/Libadwaita development packages before building Spear:
+
+```bash
+sudo apt install build-essential pkg-config libgtk-4-dev libadwaita-1-dev
+```
+
+On Fedora:
+
+```bash
+sudo dnf install gcc pkg-config gtk4-devel libadwaita-devel
+```
+
 ### Option A: Local Installation (Recommended)
 If you want to install Spear locally to your home directory:
 
@@ -113,12 +127,17 @@ If you want to install Spear locally to your home directory:
 ### Option B: Build Packages (DEB / RPM)
 If you prefer to install Spear system-wide:
 
+- **Package tool prerequisites**:
+  ```bash
+  cargo install cargo-deb cargo-generate-rpm
+  ```
 - **Debian Package (`.deb`)**:
   ```bash
   cargo deb
   ```
 - **Red Hat Package (`.rpm`)**:
   ```bash
+  cargo build --release
   cargo generate-rpm
   ```
 
