@@ -14,6 +14,8 @@ pub struct AppSettings {
     pub window_height: i32,
     pub color_scheme: String, // default, light, dark
     pub theme: String, // adwaita, tokyonight, dracula, catppuccin, gruvbox
+    #[serde(default = "default_layout_mode")]
+    pub layout_mode: String, // standard, focused, minimal
     pub file_preview_enabled: bool,
     #[serde(default = "default_true")]
     pub apps_enabled: bool,
@@ -49,6 +51,10 @@ fn default_true() -> bool {
     true
 }
 
+fn default_layout_mode() -> String {
+    "standard".to_string()
+}
+
 fn default_web_name() -> String {
     "Google".to_string()
 }
@@ -79,6 +85,7 @@ impl Default for AppSettings {
             window_height: 480,
             color_scheme: "default".to_string(),
             theme: "adwaita".to_string(),
+            layout_mode: "standard".to_string(),
             file_preview_enabled: true,
             apps_enabled: true,
             calc_enabled: true,
@@ -105,6 +112,27 @@ impl AppSettings {
 
     pub fn load() -> Self {
         let path = Self::get_config_path();
+
+        // Ensure themes directory and sample theme exist
+        if let Some(parent) = path.parent() {
+            let themes_dir = parent.join("themes");
+            let _ = fs::create_dir_all(&themes_dir);
+            let sample_theme = themes_dir.join("sample.json");
+            if !sample_theme.exists() {
+                 let sample_content = r##"{
+  "window_bg_color": "#181a1f",
+  "window_fg_color": "#abb2bf",
+  "accent_bg_color": "#61afef",
+  "accent_fg_color": "#282c34",
+  "popover_bg_color": "#21252b",
+  "popover_fg_color": "#abb2bf",
+  "entry_bg_color": "#24283b",
+  "text_color": "#5c6370"
+}"##;
+                let _ = fs::write(sample_theme, sample_content);
+            }
+        }
+
         if !path.exists() {
             let default_settings = Self::default();
             let _ = default_settings.save();
@@ -322,7 +350,7 @@ pub fn show_settings_window(
         .title("Color Scheme")
         .subtitle("Select dark, light, or system default mode")
         .build();
-    
+
     let combo = gtk4::ComboBoxText::new();
     combo.append(Some("default"), "System Default");
     combo.append(Some("light"), "Prefer Light");
@@ -335,19 +363,61 @@ pub fn show_settings_window(
     // Theme combo row
     let theme_row = libadwaita::ActionRow::builder()
         .title("Theme Palette")
-        .subtitle("Select a custom color palette (Blackbox style)")
+        .subtitle("Select a custom color palette")
         .build();
-    
+
     let theme_combo = gtk4::ComboBoxText::new();
     theme_combo.append(Some("adwaita"), "Default (Adwaita)");
     theme_combo.append(Some("tokyonight"), "Tokyo Night");
     theme_combo.append(Some("dracula"), "Dracula");
     theme_combo.append(Some("catppuccin"), "Catppuccin Mocha");
     theme_combo.append(Some("gruvbox"), "Gruvbox Material");
+    theme_combo.append(Some("jellybeans"), "Jellybeans");
+    theme_combo.append(Some("min"), "Minimalist");
+
+    // Dynamic custom themes from ~/.config/spear/themes/
+    if let Ok(home) = std::env::var("HOME") {
+        let themes_dir = PathBuf::from(home)
+            .join(".config")
+            .join("spear")
+            .join("themes");
+        if let Ok(entries) = fs::read_dir(themes_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() && path.extension().and_then(|e| e.to_str()) == Some("json") {
+                    if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                        // Exclude sample.json from selection if you want, or include it
+                        let mut chars = stem.chars();
+                        let display_name = match chars.next() {
+                            None => String::new(),
+                            Some(c) => c.to_uppercase().collect::<String>() + chars.as_str(),
+                        };
+                        theme_combo.append(Some(stem), &display_name);
+                    }
+                }
+            }
+        }
+    }
+
     theme_combo.set_active_id(Some(&settings.borrow().theme));
     theme_combo.set_valign(gtk4::Align::Center);
     theme_row.add_suffix(&theme_combo);
     appearance_group.add(&theme_row);
+
+    // Layout mode combo row
+    let layout_row = libadwaita::ActionRow::builder()
+        .title("Layout Mode")
+        .subtitle("Select launcher visual mode (Standard, Focused, Minimal)")
+        .build();
+
+    let layout_combo = gtk4::ComboBoxText::new();
+    layout_combo.append(Some("standard"), "Standard");
+    layout_combo.append(Some("focused"), "Focused");
+    layout_combo.append(Some("minimal"), "Minimal");
+    layout_combo.set_active_id(Some(&settings.borrow().layout_mode));
+    layout_combo.set_valign(gtk4::Align::Center);
+    layout_row.add_suffix(&layout_combo);
+    appearance_group.add(&layout_row);
 
 
     // Window Width
@@ -474,7 +544,7 @@ pub fn show_settings_window(
     // Connect handlers for change and save events
     let settings_clone = settings.clone();
     let on_changed_rc = Rc::new(on_changed);
-    
+
     // Helper closure to save settings and run callback
     let save_and_notify = {
         let settings = settings_clone.clone();
@@ -505,6 +575,16 @@ pub fn show_settings_window(
         if let Some(id) = cb.active_id() {
             settings_theme.borrow_mut().theme = id.to_string();
             sn_theme();
+        }
+    });
+
+    // Layout combo change
+    let sn_layout = save_and_notify.clone();
+    let settings_layout = settings_clone.clone();
+    layout_combo.connect_changed(move |cb| {
+        if let Some(id) = cb.active_id() {
+            settings_layout.borrow_mut().layout_mode = id.to_string();
+            sn_layout();
         }
     });
 
@@ -653,7 +733,7 @@ pub fn show_settings_window(
         // Run install.py asynchronously in background to re-bind keyboard keys in GNOME settings!
         let home = std::env::var("HOME").unwrap_or_else(|_| "/home/atharva".to_string());
         let project_dir = format!("{}/Projects/Spear", home);
-        
+
         let _ = std::process::Command::new("python3")
             .arg("install.py")
             .arg(&shortcut_val)

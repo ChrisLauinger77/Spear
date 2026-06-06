@@ -11,7 +11,46 @@ use crate::utils::{copy_to_clipboard, launch_url};
 use crate::settings::{AppSettings, apply_color_scheme};
 use crate::layer_shell::setup_layer_shell;
 
-fn generate_css(search_font_size: i32, title_font_size: i32, theme: &str, window_width: i32) -> String {
+fn load_custom_theme(theme_name: &str) -> Option<String> {
+    let home = std::env::var("HOME").ok()?;
+    let path = std::path::PathBuf::from(home)
+        .join(".config")
+        .join("spear")
+        .join("themes")
+        .join(format!("{}.json", theme_name));
+    
+    if !path.exists() {
+        return None;
+    }
+    
+    let content = std::fs::read_to_string(path).ok()?;
+    let colors: serde_json::Value = serde_json::from_str(&content).ok()?;
+    
+    let window_bg = colors.get("window_bg_color")?.as_str()?;
+    let window_fg = colors.get("window_fg_color")?.as_str()?;
+    let accent_bg = colors.get("accent_bg_color")?.as_str()?;
+    let accent_fg = colors.get("accent_fg_color")?.as_str()?;
+    let popover_bg = colors.get("popover_bg_color")?.as_str()?;
+    let popover_fg = colors.get("popover_fg_color")?.as_str()?;
+    let text_color = colors.get("text_color")?.as_str()?;
+    let entry_bg = colors.get("entry_bg_color")
+        .and_then(|v| v.as_str())
+        .unwrap_or(popover_bg);
+    
+    Some(format!(
+        "\n@define-color window_bg_color {};\n\
+         @define-color window_fg_color {};\n\
+         @define-color accent_bg_color {};\n\
+         @define-color accent_fg_color {};\n\
+         @define-color popover_bg_color {};\n\
+         @define-color popover_fg_color {};\n\
+         @define-color entry_bg_color {};\n\
+         @define-color text_color {};\n",
+        window_bg, window_fg, accent_bg, accent_fg, popover_bg, popover_fg, entry_bg, text_color
+    ))
+}
+
+fn generate_css(search_font_size: i32, title_font_size: i32, theme: &str, color_scheme: &str, window_width: i32) -> String {
     let theme_colors = match theme {
         "tokyonight" => "
 @define-color window_bg_color #1a1b26;
@@ -20,7 +59,8 @@ fn generate_css(search_font_size: i32, title_font_size: i32, theme: &str, window
 @define-color accent_fg_color #15161e;
 @define-color popover_bg_color #1f2335;
 @define-color popover_fg_color #c0caf5;
-@define-color text_color #9aa5ce;",
+@define-color entry_bg_color #24283b;
+@define-color text_color #9aa5ce;".to_string(),
         "dracula" => "
 @define-color window_bg_color #282a36;
 @define-color window_fg_color #f8f8f2;
@@ -28,7 +68,8 @@ fn generate_css(search_font_size: i32, title_font_size: i32, theme: &str, window
 @define-color accent_fg_color #282a36;
 @define-color popover_bg_color #44475a;
 @define-color popover_fg_color #f8f8f2;
-@define-color text_color #6272a4;",
+@define-color entry_bg_color #343746;
+@define-color text_color #6272a4;".to_string(),
         "catppuccin" => "
 @define-color window_bg_color #1e1e2e;
 @define-color window_fg_color #cdd6f4;
@@ -36,7 +77,8 @@ fn generate_css(search_font_size: i32, title_font_size: i32, theme: &str, window
 @define-color accent_fg_color #11111b;
 @define-color popover_bg_color #181825;
 @define-color popover_fg_color #cdd6f4;
-@define-color text_color #a6adc8;",
+@define-color entry_bg_color #2a2b3c;
+@define-color text_color #a6adc8;".to_string(),
         "gruvbox" => "
 @define-color window_bg_color #282828;
 @define-color window_fg_color #ebdbb2;
@@ -44,9 +86,57 @@ fn generate_css(search_font_size: i32, title_font_size: i32, theme: &str, window
 @define-color accent_fg_color #282828;
 @define-color popover_bg_color #3c3836;
 @define-color popover_fg_color #ebdbb2;
-@define-color text_color #a89984;",
-        _ => ""
+@define-color entry_bg_color #32302f;
+@define-color text_color #a89984;".to_string(),
+        "jellybeans" => "
+@define-color window_bg_color #151515;
+@define-color window_fg_color #e8e8d3;
+@define-color accent_bg_color #8197bf;
+@define-color accent_fg_color #151515;
+@define-color popover_bg_color #303030;
+@define-color popover_fg_color #e8e8d3;
+@define-color entry_bg_color #202020;
+@define-color text_color #888888;".to_string(),
+        "min" => {
+            let is_dark = if color_scheme == "default" {
+                libadwaita::StyleManager::default().is_dark()
+            } else {
+                color_scheme == "dark"
+            };
+            if is_dark {
+                "
+@define-color window_bg_color #121212;
+@define-color window_fg_color #eeeeee;
+@define-color accent_bg_color #222222;
+@define-color accent_fg_color #ffffff;
+@define-color popover_bg_color #1a1a1a;
+@define-color popover_fg_color #eeeeee;
+@define-color entry_bg_color #1e1e1e;
+@define-color text_color #999999;".to_string()
+            } else {
+                "
+@define-color window_bg_color #ffffff;
+@define-color window_fg_color #111111;
+@define-color accent_bg_color #f0f0f0;
+@define-color accent_fg_color #111111;
+@define-color popover_bg_color #fafafa;
+@define-color popover_fg_color #111111;
+@define-color entry_bg_color #f5f5f5;
+@define-color text_color #666666;".to_string()
+            }
+        },
+        other => {
+            load_custom_theme(other).unwrap_or_default()
+        }
     };
+
+    let mut theme_colors = theme_colors;
+    if !theme_colors.contains("@define-color entry_bg_color") {
+        theme_colors = format!("@define-color entry_bg_color @popover_bg_color;\n{}", theme_colors);
+    }
+    if !theme_colors.contains("@define-color text_color") {
+        theme_colors = format!("@define-color text_color @window_fg_color;\n{}", theme_colors);
+    }
 
     format!(
         concat!("{}",
@@ -73,24 +163,37 @@ window.launcher-window,
 .search-container {{
     background-color: @window_bg_color;
     border-bottom: 1px solid alpha(@window_fg_color, 0.05);
-    padding: 12px 18px;
+    padding: 8px 16px;
     border-top-left-radius: 11px;
     border-top-right-radius: 11px;
 }}
 
 .launcher-root entry {{
-    background: none;
-    border: none;
+    background-color: @entry_bg_color;
+    border: 1px solid alpha(@window_fg_color, 0.1);
+    border-radius: 8px;
+    padding: 0px 12px;
     box-shadow: none;
     font-size: {1}px;
     color: @window_fg_color;
     caret-color: @accent_bg_color;
     margin-left: 8px;
+    margin-right: 0px;
 }}
 
 .launcher-root entry:focus {{
-    outline: none;
+    border-color: @accent_bg_color;
     box-shadow: none;
+}}
+
+.launcher-root entry.focused-mode {{
+    margin-left: 0px;
+    margin-right: 0px;
+}}
+
+.launcher-root list.minimal-mode row {{
+    padding: 4px 10px;
+    margin-bottom: 2px;
 }}
 
 .launcher-root list {{
@@ -281,6 +384,7 @@ pub struct SpearWindow {
 struct WindowState {
     window: libadwaita::ApplicationWindow,
     entry: gtk4::Entry,
+    search_icon: gtk4::Image,
     listbox: gtk4::ListBox,
     scrolled_window: gtk4::ScrolledWindow,
     empty_label: gtk4::Label,
@@ -340,6 +444,7 @@ impl SpearWindow {
             settings.borrow().search_font_size,
             settings.borrow().title_font_size,
             &settings.borrow().theme,
+            &settings.borrow().color_scheme,
             settings.borrow().window_width,
         );
         provider.load_from_data(&css_data);
@@ -363,21 +468,41 @@ impl SpearWindow {
         // Search Bar Container
         let search_box = gtk4::Box::new(gtk4::Orientation::Horizontal, 0);
         search_box.add_css_class("search-container");
+        search_box.set_hexpand(true);
+        search_box.set_halign(gtk4::Align::Fill);
         main_box.append(&search_box);
 
         let search_icon = gtk4::Image::from_icon_name("system-search-symbolic");
-        search_icon.set_pixel_size(20);
+        search_icon.set_pixel_size(18);
+        search_icon.set_valign(gtk4::Align::Center);
         search_box.append(&search_icon);
 
         let entry = gtk4::Entry::builder()
             .placeholder_text("Search apps, calculate, search the web or run plugins...")
             .hexpand(true)
+            .halign(gtk4::Align::Fill)
+            .width_chars(0)
             .build();
         search_box.append(&entry);
 
+        // Apply initial layout mode visibility/styles
+        let initial_layout_mode = settings.borrow().layout_mode.clone();
+        if initial_layout_mode == "focused" || initial_layout_mode == "minimal" {
+            search_icon.set_visible(false);
+        } else {
+            search_icon.set_visible(true);
+        }
+        if initial_layout_mode == "focused" {
+            entry.add_css_class("focused-mode");
+        } else {
+            entry.remove_css_class("focused-mode");
+        }
+
         let spinner = gtk4::Spinner::builder()
-            .width_request(20)
-            .height_request(20)
+            .width_request(18)
+            .height_request(18)
+            .valign(gtk4::Align::Center)
+            .visible(false)
             .build();
         search_box.append(&spinner);
 
@@ -400,6 +525,9 @@ impl SpearWindow {
 
         let listbox = gtk4::ListBox::new();
         listbox.set_selection_mode(gtk4::SelectionMode::Single);
+        if initial_layout_mode == "minimal" {
+            listbox.add_css_class("minimal-mode");
+        }
         scrolled_window.set_child(Some(&listbox));
 
         // Preview Panel Container
@@ -519,6 +647,9 @@ impl SpearWindow {
         let w_clone = window.clone();
         let c_clone = provider.clone();
         let p_panel_clone = preview_panel.clone();
+        let entry_clone = entry.clone();
+        let search_icon_clone = search_icon.clone();
+        let listbox_clone = listbox.clone();
         settings_btn.connect_clicked(move |_| {
             w_clone.hide();
             let s_clone = s_clone.clone();
@@ -527,11 +658,31 @@ impl SpearWindow {
             let w_clone_inner = w_clone.clone();
             let c_clone = c_clone.clone();
             let p_panel = p_panel_clone.clone();
+            let entry_call = entry_clone.clone();
+            let search_icon_call = search_icon_clone.clone();
+            let listbox_call = listbox_clone.clone();
             crate::settings::show_settings_window(&w_clone_call, s_clone, move || {
                 let s = s_clone_2.borrow();
                 w_clone_inner.set_size_request(s.window_width, s.window_height);
-                c_clone.load_from_data(&generate_css(s.search_font_size, s.title_font_size, &s.theme, s.window_width));
+                c_clone.load_from_data(&generate_css(s.search_font_size, s.title_font_size, &s.theme, &s.color_scheme, s.window_width));
                 p_panel.set_visible(s.file_preview_enabled);
+
+                if s.layout_mode == "focused" || s.layout_mode == "minimal" {
+                    search_icon_call.set_visible(false);
+                } else {
+                    search_icon_call.set_visible(true);
+                }
+                if s.layout_mode == "focused" {
+                    entry_call.add_css_class("focused-mode");
+                } else {
+                    entry_call.remove_css_class("focused-mode");
+                }
+
+                if s.layout_mode == "minimal" {
+                    listbox_call.add_css_class("minimal-mode");
+                } else {
+                    listbox_call.remove_css_class("minimal-mode");
+                }
             });
         });
 
@@ -564,6 +715,7 @@ impl SpearWindow {
         let state = Rc::new(RefCell::new(WindowState {
             window,
             entry,
+            search_icon,
             listbox,
             scrolled_window,
             empty_label,
@@ -695,6 +847,7 @@ impl SpearWindow {
                 let action_btn = state.action_btn.clone();
                 let current_items = state.current_items.clone();
                 let query_empty = state.entry.text().trim().is_empty();
+                let layout_mode = state.settings.borrow().layout_mode.clone();
                 
                 // Drop the borrow before we start mutating GtkListBox rows!
                 drop(state);
@@ -721,7 +874,7 @@ impl SpearWindow {
 
                 // 2. Add rows
                 for item in &current_items {
-                    let row = build_row(item);
+                    let row = build_row(item, &layout_mode);
                     listbox.append(&row);
                 }
 
@@ -771,6 +924,8 @@ impl SpearWindow {
                 let css_provider = state.css_provider.clone();
                 let preview_panel = state.preview_panel.clone();
                 let entry = state.entry.clone();
+                let search_icon = state.search_icon.clone();
+                let listbox = state.listbox.clone();
                 
                 drop(state);
                 
@@ -783,6 +938,8 @@ impl SpearWindow {
                     &css_provider,
                     &preview_panel,
                     &entry,
+                    &search_icon,
+                    &listbox,
                 );
             }
         });
@@ -823,6 +980,8 @@ impl SpearWindow {
                             let css_provider = window_state.css_provider.clone();
                             let preview_panel = window_state.preview_panel.clone();
                             let entry = window_state.entry.clone();
+                            let search_icon = window_state.search_icon.clone();
+                            let listbox = window_state.listbox.clone();
                             
                             drop(window_state);
                             
@@ -835,6 +994,8 @@ impl SpearWindow {
                                 &css_provider,
                                 &preview_panel,
                                 &entry,
+                                &search_icon,
+                                &listbox,
                             );
                         }
                     }
@@ -879,6 +1040,8 @@ impl SpearWindow {
                     let css_provider = state.css_provider.clone();
                     let preview_panel = state.preview_panel.clone();
                     let entry = state.entry.clone();
+                    let search_icon = state.search_icon.clone();
+                    let listbox = state.listbox.clone();
                     
                     drop(state);
                     
@@ -891,6 +1054,8 @@ impl SpearWindow {
                         &css_provider,
                         &preview_panel,
                         &entry,
+                        &search_icon,
+                        &listbox,
                     );
                 }
             }
@@ -936,7 +1101,7 @@ impl SpearWindow {
     }
 }
 
-fn build_row(item: &ResultItem) -> gtk4::ListBoxRow {
+fn build_row(item: &ResultItem, layout_mode: &str) -> gtk4::ListBoxRow {
     let row = gtk4::ListBoxRow::new();
     row.set_focus_on_click(false);
 
@@ -949,83 +1114,85 @@ fn build_row(item: &ResultItem) -> gtk4::ListBoxRow {
     box_layout.set_hexpand(false);
     row.set_child(Some(&box_layout));
 
-    // Icon resolution:
-    //  1. Strip "-symbolic" suffix so GTK looks up the full-colour Adwaita
-    //     icon first (e.g. "folder" instead of "folder-symbolic"). The theme
-    //     automatically falls back to the symbolic variant if no colour icon exists.
-    //  2. Absolute paths that are SVGs → treat the stem as a named icon so
-    //     the Adwaita theme renderer applies colours.
-    //  3. Absolute paths that are bitmaps → render directly via GFileIcon.
-    let icon_str = item.icon.as_deref().unwrap_or("system-run");
+    if layout_mode != "minimal" {
+        // Icon resolution:
+        //  1. Strip "-symbolic" suffix so GTK looks up the full-colour Adwaita
+        //     icon first (e.g. "folder" instead of "folder-symbolic"). The theme
+        //     automatically falls back to the symbolic variant if no colour icon exists.
+        //  2. Absolute paths that are SVGs → treat the stem as a named icon so
+        //     the Adwaita theme renderer applies colours.
+        //  3. Absolute paths that are bitmaps → render directly via GFileIcon.
+        let icon_str = item.icon.as_deref().unwrap_or("system-run");
 
-    // Resolve path for custom icon
-    let mut custom_path = None;
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/home/atharva".to_string());
-    let installed_path = std::path::PathBuf::from(home)
-        .join(".config")
-        .join("spear")
-        .join("icons")
-        .join(icon_str);
-    let system_path = std::path::PathBuf::from("/usr/share/spear/icons").join(icon_str);
-    if installed_path.exists() && installed_path.is_file() {
-        custom_path = Some(installed_path);
-    } else if system_path.exists() && system_path.is_file() {
-        custom_path = Some(system_path);
-    } else {
-        // Fallback to local icons/ directory relative to current working directory (for development)
-        let local_path = std::path::PathBuf::from("icons").join(icon_str);
-        if local_path.exists() && local_path.is_file() {
-            custom_path = Some(local_path);
-        }
-    }
-
-    let image = if let Some(path) = custom_path {
-        // Custom downloaded SVG/PNG icon
-        let file = gio::File::for_path(&path);
-        gtk4::Image::from_gicon(&gio::FileIcon::new(&file))
-    } else if icon_str.starts_with('/') && std::path::Path::new(icon_str).exists() {
-        let path = std::path::Path::new(icon_str);
-        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-        if ext == "svg" {
-            // Use the filename stem as a named icon (e.g. "folder" from "folder.svg")
-            let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("application-x-executable");
-            let name = stem.trim_end_matches("-symbolic");
-            
-            let resolved_name = if let Some(display) = gdk4::Display::default() {
-                let icon_theme = gtk4::IconTheme::for_display(&display);
-                if icon_theme.has_icon(name) {
-                    name.to_string()
-                } else {
-                    stem.to_string()
-                }
-            } else {
-                name.to_string()
-            };
-            gtk4::Image::from_icon_name(&resolved_name)
+        // Resolve path for custom icon
+        let mut custom_path = None;
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/home/atharva".to_string());
+        let installed_path = std::path::PathBuf::from(home)
+            .join(".config")
+            .join("spear")
+            .join("icons")
+            .join(icon_str);
+        let system_path = std::path::PathBuf::from("/usr/share/spear/icons").join(icon_str);
+        if installed_path.exists() && installed_path.is_file() {
+            custom_path = Some(installed_path);
+        } else if system_path.exists() && system_path.is_file() {
+            custom_path = Some(system_path);
         } else {
-            // Bitmap thumbnail — display as-is
-            let file = gio::File::for_path(icon_str);
-            gtk4::Image::from_gicon(&gio::FileIcon::new(&file))
+            // Fallback to local icons/ directory relative to current working directory (for development)
+            let local_path = std::path::PathBuf::from("icons").join(icon_str);
+            if local_path.exists() && local_path.is_file() {
+                custom_path = Some(local_path);
+            }
         }
-    } else {
-        // Named icon — strip "-symbolic" to prefer the colour version ONLY if the colour version exists
-        let color_name = icon_str.trim_end_matches("-symbolic");
-        let resolved_name = if let Some(display) = gdk4::Display::default() {
-            let icon_theme = gtk4::IconTheme::for_display(&display);
-            if icon_theme.has_icon(color_name) {
-                color_name.to_string()
+
+        let image = if let Some(path) = custom_path {
+            // Custom downloaded SVG/PNG icon
+            let file = gio::File::for_path(&path);
+            gtk4::Image::from_gicon(&gio::FileIcon::new(&file))
+        } else if icon_str.starts_with('/') && std::path::Path::new(icon_str).exists() {
+            let path = std::path::Path::new(icon_str);
+            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+            if ext == "svg" {
+                // Use the filename stem as a named icon (e.g. "folder" from "folder.svg")
+                let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("application-x-executable");
+                let name = stem.trim_end_matches("-symbolic");
+                
+                let resolved_name = if let Some(display) = gdk4::Display::default() {
+                    let icon_theme = gtk4::IconTheme::for_display(&display);
+                    if icon_theme.has_icon(name) {
+                        name.to_string()
+                    } else {
+                        stem.to_string()
+                    }
+                } else {
+                    name.to_string()
+                };
+                gtk4::Image::from_icon_name(&resolved_name)
             } else {
-                icon_str.to_string()
+                // Bitmap thumbnail — display as-is
+                let file = gio::File::for_path(icon_str);
+                gtk4::Image::from_gicon(&gio::FileIcon::new(&file))
             }
         } else {
-            color_name.to_string()
+            // Named icon — strip "-symbolic" to prefer the colour version ONLY if the colour version exists
+            let color_name = icon_str.trim_end_matches("-symbolic");
+            let resolved_name = if let Some(display) = gdk4::Display::default() {
+                let icon_theme = gtk4::IconTheme::for_display(&display);
+                if icon_theme.has_icon(color_name) {
+                    color_name.to_string()
+                } else {
+                    icon_str.to_string()
+                }
+            } else {
+                color_name.to_string()
+            };
+            gtk4::Image::from_icon_name(&resolved_name)
         };
-        gtk4::Image::from_icon_name(&resolved_name)
-    };
 
-    image.set_pixel_size(32);
-    image.set_valign(gtk4::Align::Center);
-    box_layout.append(&image);
+        image.set_pixel_size(32);
+        image.set_valign(gtk4::Align::Center);
+        box_layout.append(&image);
+    }
 
     // Text Box — hexpand so it absorbs available space and prevents
     // the category badge from pushing the row wider than the window
@@ -1043,13 +1210,15 @@ fn build_row(item: &ResultItem) -> gtk4::ListBoxRow {
     title_label.add_css_class("row-title");
     text_box.append(&title_label);
 
-    if let Some(ref subtitle) = item.subtitle {
-        let subtitle_label = gtk4::Label::new(Some(subtitle));
-        subtitle_label.set_halign(gtk4::Align::Start);
-        subtitle_label.set_ellipsize(gtk4::pango::EllipsizeMode::End);
-        subtitle_label.set_max_width_chars(50);
-        subtitle_label.add_css_class("row-subtitle");
-        text_box.append(&subtitle_label);
+    if layout_mode != "minimal" {
+        if let Some(ref subtitle) = item.subtitle {
+            let subtitle_label = gtk4::Label::new(Some(subtitle));
+            subtitle_label.set_halign(gtk4::Align::Start);
+            subtitle_label.set_ellipsize(gtk4::pango::EllipsizeMode::End);
+            subtitle_label.set_max_width_chars(50);
+            subtitle_label.add_css_class("row-subtitle");
+            text_box.append(&subtitle_label);
+        }
     }
 
     // Category badge — fixed on the right; does NOT hexpand
@@ -1151,6 +1320,8 @@ fn execute_action(
     css_provider: &gtk4::CssProvider,
     preview_panel: &gtk4::Box,
     entry: &gtk4::Entry,
+    search_icon: &gtk4::Image,
+    listbox: &gtk4::ListBox,
 ) {
     if index >= item.actions.len() {
         return;
@@ -1167,13 +1338,34 @@ fn execute_action(
             let w_clone = window.clone();
             let c_clone = css_provider.clone();
             let p_panel = preview_panel.clone();
+            let entry_clone = entry.clone();
+            let search_icon_clone = search_icon.clone();
+            let listbox_clone = listbox.clone();
             crate::settings::show_settings_window(window, s_clone, move || {
                 let s = s_clone_2.borrow();
                 // 1. Resize main window to new settings width
                 w_clone.set_size_request(s.window_width, s.window_height);
                 // 2. Reload custom CSS styles
-                c_clone.load_from_data(&generate_css(s.search_font_size, s.title_font_size, &s.theme, s.window_width));
+                c_clone.load_from_data(&generate_css(s.search_font_size, s.title_font_size, &s.theme, &s.color_scheme, s.window_width));
                 p_panel.set_visible(s.file_preview_enabled);
+
+                // Update layout mode dynamically
+                if s.layout_mode == "focused" || s.layout_mode == "minimal" {
+                    search_icon_clone.set_visible(false);
+                } else {
+                    search_icon_clone.set_visible(true);
+                }
+                if s.layout_mode == "focused" {
+                    entry_clone.add_css_class("focused-mode");
+                } else {
+                    entry_clone.remove_css_class("focused-mode");
+                }
+
+                if s.layout_mode == "minimal" {
+                    listbox_clone.add_css_class("minimal-mode");
+                } else {
+                    listbox_clone.remove_css_class("minimal-mode");
+                }
             });
         }
         "launch-app" => {
