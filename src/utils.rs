@@ -41,6 +41,119 @@ pub fn launch_url(url: &str) -> Result<(), glib::Error> {
     gio::AppInfo::launch_default_for_uri(url, gio::AppLaunchContext::NONE)
 }
 
+pub fn register_gnome_shortcut(shortcut: &str) -> Result<(), String> {
+    use std::process::Command;
+    use std::path::PathBuf;
+
+    let binary_path = std::env::current_exe()
+        .unwrap_or_else(|_| PathBuf::from("/usr/bin/spear"));
+
+    println!("⌨️   Registering GNOME global shortcut ({shortcut})…");
+
+    // Read existing custom keybindings
+    let existing_output = Command::new("gsettings")
+        .args([
+            "get",
+            "org.gnome.settings-daemon.plugins.media-keys",
+            "custom-keybindings",
+        ])
+        .output()
+        .map_err(|e| format!("gsettings get failed: {e}"))?;
+
+    let existing = String::from_utf8_lossy(&existing_output.stdout).trim().to_string();
+    let mut paths: Vec<String> = if existing == "@as []" || existing == "[]" || existing.is_empty() {
+        vec![]
+    } else {
+        existing
+            .trim_matches(|c| c == '[' || c == ']')
+            .split(',')
+            .map(|s| s.trim().trim_matches('\'').to_string())
+            .filter(|s| !s.is_empty())
+            .collect()
+    };
+
+    // Check if we already have a "Spear" binding; find or create a slot
+    let mut spear_path: Option<String> = None;
+    for p in &paths {
+        let out = Command::new("gsettings")
+            .args([
+                "get",
+                &format!("org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:{p}"),
+                "name",
+            ])
+            .output();
+        if let Ok(o) = out {
+            let name = String::from_utf8_lossy(&o.stdout)
+                .trim()
+                .trim_matches('\'')
+                .to_string();
+            if name == "Spear" {
+                spear_path = Some(p.clone());
+                break;
+            }
+        }
+    }
+
+    if spear_path.is_none() {
+        // Find next free custom index
+        let indices: Vec<usize> = paths
+            .iter()
+            .filter_map(|p| {
+                p.trim_end_matches('/')
+                    .rsplit("custom")
+                    .next()
+                    .and_then(|n| n.parse().ok())
+            })
+            .collect();
+        let mut idx = 0usize;
+        while indices.contains(&idx) {
+            idx += 1;
+        }
+        let new_path = format!(
+            "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom{idx}/"
+        );
+        paths.push(new_path.clone());
+        spear_path = Some(new_path);
+    }
+
+    let sp = spear_path.unwrap();
+    let schema = format!(
+        "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:{sp}"
+    );
+
+    let run = |args: &[&str]| -> Result<(), String> {
+        let status = Command::new("gsettings")
+            .args(args)
+            .status()
+            .map_err(|e| format!("gsettings error: {e}"))?;
+        if !status.success() {
+            return Err(format!("gsettings failed: {args:?}"));
+        }
+        Ok(())
+    };
+
+    let _ = run(&["set", &schema, "name", "Spear"]);
+    let _ = run(&["set", &schema, "command", &binary_path.to_string_lossy()]);
+    let _ = run(&["set", &schema, "binding", shortcut]);
+
+    // Write back the updated paths list
+    let list = paths
+        .iter()
+        .map(|p| format!("'{p}'"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let list = format!("[{list}]");
+    run(&[
+        "set",
+        "org.gnome.settings-daemon.plugins.media-keys",
+        "custom-keybindings",
+        &list,
+    ])?;
+
+    println!("✅  GNOME shortcut '{shortcut}' registered.");
+    Ok(())
+}
+
 pub fn evaluate_math(expr: &str) -> Option<f64> {
     let mut parser = MathParser::new(expr);
     let val = parser.parse_expression()?;

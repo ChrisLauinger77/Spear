@@ -12,6 +12,13 @@ use crate::plugins::run_cmd::RunCommandPlugin;
 use crate::plugins::gnome_sys::GnomeSysPlugin;
 use crate::plugins::recent::RecentFilesPlugin;
 use crate::plugins::file_manager::FileManagerPlugin;
+use crate::plugins::packages::PackageSearchPlugin;
+use crate::plugins::fonts::FontSearchPlugin;
+use crate::plugins::colors::ColorPalettePlugin;
+use crate::plugins::clipboard::ClipboardPlugin;
+use crate::plugins::window_mgmt::WindowManagementPlugin;
+use crate::plugins::emojis::EmojiPlugin;
+use crate::plugins::window_switcher::WindowSwitcherPlugin;
 
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct ExternalManifest {
@@ -71,6 +78,13 @@ impl PluginManager {
             Box::new(GnomeSysPlugin::new()),
             Box::new(RecentFilesPlugin::new()),
             Box::new(FileManagerPlugin::new()),
+            Box::new(PackageSearchPlugin::new()),
+            Box::new(FontSearchPlugin::new()),
+            Box::new(ColorPalettePlugin::new()),
+            Box::new(ClipboardPlugin::new()),
+            Box::new(WindowManagementPlugin::new()),
+            Box::new(EmojiPlugin::new()),
+            Box::new(WindowSwitcherPlugin::new()),
         ];
     }
 
@@ -118,7 +132,40 @@ impl PluginManager {
     ) {
         let query_trimmed = query_text.trim();
         
-        // Check if query starts with an external plugin's keyword + space
+        // 1. Check for Mode keywords first
+        let mut mode_plugin = None;
+        let mut mode_query = "";
+
+        for plugin in &self.internal_plugins {
+            if let Some(keyword) = plugin.mode_keyword() {
+                let prefix_with_space = format!("{} ", keyword);
+                if query_trimmed == keyword {
+                    mode_plugin = Some(plugin);
+                    mode_query = "";
+                    break;
+                } else if query_trimmed.starts_with(&prefix_with_space) {
+                    mode_plugin = Some(plugin);
+                    mode_query = &query_trimmed[prefix_with_space.len()..];
+                    break;
+                }
+            }
+        }
+
+        if let Some(plugin) = mode_plugin {
+            // In mode: only run this plugin
+            let results = plugin.query(mode_query, &settings);
+            let _ = sender.send_blocking((plugin.id().to_string(), results, None));
+            
+            // Clear other plugins
+            for other in &self.internal_plugins {
+                if other.id() != plugin.id() {
+                    let _ = sender.send_blocking((other.id().to_string(), Vec::new(), None));
+                }
+            }
+            return;
+        }
+
+        // 2. Check if query starts with an external plugin's keyword + space
         let mut matched_keyword_plugin = None;
         let mut external_query = query_trimmed.to_string();
 
@@ -158,6 +205,12 @@ impl PluginManager {
             };
 
             if is_enabled {
+                // Skip plugins that are mode-only when not in mode
+                if plugin.is_mode_only() {
+                    let _ = sender.send_blocking((plugin.id().to_string(), Vec::new(), None));
+                    continue;
+                }
+
                 let results = plugin.query(query_trimmed, &settings);
                 let _ = sender.send_blocking((plugin.id().to_string(), results, None));
             } else {

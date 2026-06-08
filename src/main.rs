@@ -89,110 +89,8 @@ fn run_init_setup() -> Result<(), String> {
 
     // 4. Register GNOME global shortcut
     let shortcut = &settings.shortcut;
-    println!("⌨️   Registering GNOME global shortcut ({shortcut})…");
-
-    // Read existing custom keybindings
-    let existing_output = Command::new("gsettings")
-        .args([
-            "get",
-            "org.gnome.settings-daemon.plugins.media-keys",
-            "custom-keybindings",
-        ])
-        .output();
-
-    if let Ok(output) = existing_output {
-        let existing = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        let mut paths: Vec<String> = if existing == "@as []" || existing == "[]" || existing.is_empty() {
-            vec![]
-        } else {
-            existing
-                .trim_matches(|c| c == '[' || c == ']')
-                .split(',')
-                .map(|s| s.trim().trim_matches('\'').to_string())
-                .filter(|s| !s.is_empty())
-                .collect()
-        };
-
-        // Check if we already have a "Spear" binding; find or create a slot
-        let mut spear_path: Option<String> = None;
-        for p in &paths {
-            let out = Command::new("gsettings")
-                .args([
-                    "get",
-                    &format!("org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:{p}"),
-                    "name",
-                ])
-                .output();
-            if let Ok(o) = out {
-                let name = String::from_utf8_lossy(&o.stdout)
-                    .trim()
-                    .trim_matches('\'')
-                    .to_string();
-                if name == "Spear" {
-                    spear_path = Some(p.clone());
-                    break;
-                }
-            }
-        }
-
-        if spear_path.is_none() {
-            // Find next free custom index
-            let indices: Vec<usize> = paths
-                .iter()
-                .filter_map(|p| {
-                    p.trim_end_matches('/')
-                        .rsplit("custom")
-                        .next()
-                        .and_then(|n| n.parse().ok())
-                })
-                .collect();
-            let mut idx = 0usize;
-            while indices.contains(&idx) {
-                idx += 1;
-            }
-            let new_path = format!(
-                "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom{idx}/"
-            );
-            paths.push(new_path.clone());
-            spear_path = Some(new_path);
-        }
-
-        let sp = spear_path.unwrap();
-        let schema = format!(
-            "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:{sp}"
-        );
-
-        let run = |args: &[&str]| -> Result<(), String> {
-            let status = Command::new("gsettings")
-                .args(args)
-                .status()
-                .map_err(|e| format!("gsettings error: {e}"))?;
-            if !status.success() {
-                return Err(format!("gsettings failed: {args:?}"));
-            }
-            Ok(())
-        };
-
-        let _ = run(&["set", &schema, "name", "Spear"]);
-        let _ = run(&["set", &schema, "command", &binary_path.to_string_lossy()]);
-        let _ = run(&["set", &schema, "binding", shortcut]);
-
-        // Write back the updated paths list
-        let list = paths
-            .iter()
-            .map(|p| format!("'{p}'"))
-            .collect::<Vec<_>>()
-            .join(", ");
-        let list = format!("[{list}]");
-        let _ = run(&[
-            "set",
-            "org.gnome.settings-daemon.plugins.media-keys",
-            "custom-keybindings",
-            &list,
-        ]);
-        println!("✅  GNOME shortcut '{shortcut}' registered.");
-    } else {
-        println!("⚠️  gsettings not available, skipping GNOME shortcut registration.");
+    if let Err(e) = crate::utils::register_gnome_shortcut(shortcut) {
+        println!("⚠️  Failed to register GNOME shortcut: {e}");
     }
 
     // 5. Create the setup marker file
@@ -216,7 +114,7 @@ fn main() -> glib::ExitCode {
     }
 
     let app = libadwaita::Application::builder()
-        .application_id("com.antigravity.spear")
+        .application_id("com.athxrvx.spear")
         .flags(gio::ApplicationFlags::HANDLES_COMMAND_LINE)
         .build();
 
@@ -227,6 +125,9 @@ fn main() -> glib::ExitCode {
     app.connect_startup(move |app| {
         // Apply color scheme initially (GTK is now initialized)
         settings::apply_color_scheme(&settings_startup.borrow().color_scheme);
+
+        // Apply GNOME super override
+        settings_startup.borrow().apply_gnome_super_override();
 
         // Hold the application to keep it running in the background using RAII guard
         let guard = app.hold();
@@ -291,6 +192,13 @@ fn main() -> glib::ExitCode {
                     "command" => settings_clone.borrow().command_enabled,
                     "gnome" => settings_clone.borrow().gnome_enabled,
                     "recent" => settings_clone.borrow().recent_enabled,
+                    "packages" => settings_clone.borrow().packages_enabled,
+                    "fonts" => settings_clone.borrow().fonts_enabled,
+                    "colors" => settings_clone.borrow().colors_enabled,
+                    "clipboard" => settings_clone.borrow().clipboard_enabled,
+                    "window-mgmt" => settings_clone.borrow().window_mgmt_enabled,
+                    "emojis" => settings_clone.borrow().emojis_enabled,
+                    "window-switcher" => settings_clone.borrow().window_switcher_enabled,
                     _ => true,
                 };
                 let status_str = if is_enabled { "enabled" } else { "disabled" };

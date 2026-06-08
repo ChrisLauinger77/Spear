@@ -33,6 +33,24 @@ pub struct AppSettings {
     pub gnome_enabled: bool,
     #[serde(default = "default_true")]
     pub recent_enabled: bool,
+    #[serde(default = "default_false")]
+    pub packages_enabled: bool,
+    #[serde(default = "default_false")]
+    pub fonts_enabled: bool,
+    #[serde(default = "default_false")]
+    pub colors_enabled: bool,
+    #[serde(default = "default_false")]
+    pub clipboard_enabled: bool,
+    #[serde(default = "default_false")]
+    pub window_mgmt_enabled: bool,
+    #[serde(default = "default_false")]
+    pub emojis_enabled: bool,
+    #[serde(default = "default_false")]
+    pub window_switcher_enabled: bool,
+    #[serde(default = "default_false")]
+    pub grid_view_enabled: bool,
+    #[serde(default = "default_false")]
+    pub gnome_super_override: bool,
 
     // New configuration fields:
     #[serde(default = "default_web_name")]
@@ -49,6 +67,10 @@ pub struct AppSettings {
 
 fn default_true() -> bool {
     true
+}
+
+fn default_false() -> bool {
+    false
 }
 
 fn default_layout_mode() -> String {
@@ -95,6 +117,15 @@ impl Default for AppSettings {
             command_enabled: true,
             gnome_enabled: true,
             recent_enabled: true,
+            packages_enabled: false,
+            fonts_enabled: false,
+            colors_enabled: false,
+            clipboard_enabled: false,
+            window_mgmt_enabled: false,
+            emojis_enabled: false,
+            window_switcher_enabled: false,
+            grid_view_enabled: false,
+            gnome_super_override: false,
             web_custom_name: "Google".to_string(),
             web_custom_url: "https://google.com/search?q=".to_string(),
             file_search_roots: "~/Documents, ~/Downloads, ~/Desktop".to_string(),
@@ -154,6 +185,42 @@ impl AppSettings {
         }
         let content = serde_json::to_string_pretty(self)?;
         fs::write(path, content)
+    }
+
+    pub fn apply_gnome_super_override(&self) {
+        use std::process::Command;
+        
+        if self.gnome_super_override {
+            // 1. Disable GNOME dashboard/overview on Super
+            let _ = Command::new("gsettings")
+                .args(["set", "org.gnome.mutter", "overlay-key", "''"])
+                .status();
+            let _ = Command::new("gsettings")
+                .args(["set", "org.gnome.shell.keybindings", "toggle-overview", "[]"])
+                .status();
+            
+            // 2. Register Spear to <Super>space instead of Super_L to avoid breaking combinations
+            // GNOME custom shortcuts for single modifier keys like Super_L are "greedy" and 
+            // intercept the key even when used in combinations (like Super+L).
+            if let Err(e) = crate::utils::register_gnome_shortcut("<Super>space") {
+                eprintln!("Failed to auto-register <Super>space: {}", e);
+            }
+
+            println!("GNOME Super override enabled: Dashboard disabled and Spear bound to <Super>space.");
+        } else {
+            // Restore GNOME defaults
+            let _ = Command::new("gsettings")
+                .args(["reset", "org.gnome.mutter", "overlay-key"])
+                .status();
+            let _ = Command::new("gsettings")
+                .args(["reset", "org.gnome.shell.keybindings", "toggle-overview"])
+                .status();
+
+            // Re-register the original shortcut
+            let _ = crate::utils::register_gnome_shortcut(&self.shortcut);
+
+            println!("GNOME Super override disabled: Dashboard restored and original shortcut rebound.");
+        }
     }
 }
 
@@ -339,6 +406,90 @@ pub fn show_settings_window(
     recent_row.add_suffix(&recent_switch);
     plugins_group.add(&recent_row);
 
+    // Package Search Row
+    let packages_row = libadwaita::ActionRow::builder()
+        .title("Package Search")
+        .subtitle("Search and install system packages (APT, Flatpak)")
+        .build();
+    let packages_switch = gtk4::Switch::builder()
+        .active(settings.borrow().packages_enabled)
+        .valign(gtk4::Align::Center)
+        .build();
+    packages_row.add_suffix(&packages_switch);
+    plugins_group.add(&packages_row);
+
+    // Font Search Row
+    let fonts_row = libadwaita::ActionRow::builder()
+        .title("Font Search")
+        .subtitle("Search and preview system fonts")
+        .build();
+    let fonts_switch = gtk4::Switch::builder()
+        .active(settings.borrow().fonts_enabled)
+        .valign(gtk4::Align::Center)
+        .build();
+    fonts_row.add_suffix(&fonts_switch);
+    plugins_group.add(&fonts_row);
+
+    // Color Palette Row
+    let colors_row = libadwaita::ActionRow::builder()
+        .title("Color Palette")
+        .subtitle("Search colors and copy hex codes")
+        .build();
+    let colors_switch = gtk4::Switch::builder()
+        .active(settings.borrow().colors_enabled)
+        .valign(gtk4::Align::Center)
+        .build();
+    colors_row.add_suffix(&colors_switch);
+    plugins_group.add(&colors_row);
+
+    // Clipboard Manager Row
+    let clipboard_row = libadwaita::ActionRow::builder()
+        .title("Clipboard Manager")
+        .subtitle("Access clipboard history")
+        .build();
+    let clipboard_switch = gtk4::Switch::builder()
+        .active(settings.borrow().clipboard_enabled)
+        .valign(gtk4::Align::Center)
+        .build();
+    clipboard_row.add_suffix(&clipboard_switch);
+    plugins_group.add(&clipboard_row);
+
+    // Window Management Row
+    let window_mgmt_row = libadwaita::ActionRow::builder()
+        .title("Window Management")
+        .subtitle("Quick tiling and window operations")
+        .build();
+    let window_mgmt_switch = gtk4::Switch::builder()
+        .active(settings.borrow().window_mgmt_enabled)
+        .valign(gtk4::Align::Center)
+        .build();
+    window_mgmt_row.add_suffix(&window_mgmt_switch);
+    plugins_group.add(&window_mgmt_row);
+
+    // Emoji Picker Row
+    let emojis_row = libadwaita::ActionRow::builder()
+        .title("Emoji Picker")
+        .subtitle("Search and copy emojis")
+        .build();
+    let emojis_switch = gtk4::Switch::builder()
+        .active(settings.borrow().emojis_enabled)
+        .valign(gtk4::Align::Center)
+        .build();
+    emojis_row.add_suffix(&emojis_switch);
+    plugins_group.add(&emojis_row);
+
+    // Window Switcher Row
+    let window_switcher_row = libadwaita::ActionRow::builder()
+        .title("Window Switcher")
+        .subtitle("Search and switch between open windows")
+        .build();
+    let window_switcher_switch = gtk4::Switch::builder()
+        .active(settings.borrow().window_switcher_enabled)
+        .valign(gtk4::Align::Center)
+        .build();
+    window_switcher_row.add_suffix(&window_switcher_switch);
+    plugins_group.add(&window_switcher_row);
+
     // Group 1: Appearance
     let appearance_group = libadwaita::PreferencesGroup::builder()
         .title("Appearance")
@@ -468,6 +619,18 @@ pub fn show_settings_window(
     preview_row.add_suffix(&preview_switch);
     appearance_group.add(&preview_row);
 
+    // Grid View Toggle
+    let grid_row = libadwaita::ActionRow::builder()
+        .title("Enable Grid View")
+        .subtitle("Display search results in a grid layout instead of a list")
+        .build();
+    let grid_switch = gtk4::Switch::builder()
+        .active(settings.borrow().grid_view_enabled)
+        .valign(gtk4::Align::Center)
+        .build();
+    grid_row.add_suffix(&grid_switch);
+    appearance_group.add(&grid_row);
+
     // Group 2: Typography
     let typo_group = libadwaita::PreferencesGroup::builder()
         .title("Typography")
@@ -528,6 +691,18 @@ pub fn show_settings_window(
         .build();
     shortcut_row.add_suffix(&shortcut_entry);
     shortcut_group.add(&shortcut_row);
+
+    // GNOME Super Override Toggle
+    let super_row = libadwaita::ActionRow::builder()
+        .title("Use Super Key for Spear")
+        .subtitle("Disables GNOME dashboard and binds <Super>space to Spear (Standalone Super is restricted by GNOME)")
+        .build();
+    let super_switch = gtk4::Switch::builder()
+        .active(settings.borrow().gnome_super_override)
+        .valign(gtk4::Align::Center)
+        .build();
+    super_row.add_suffix(&super_switch);
+    shortcut_group.add(&super_row);
 
     // Button to Apply Shortcut Settings
     let apply_btn_row = libadwaita::ActionRow::builder()
@@ -595,6 +770,14 @@ pub fn show_settings_window(
         sn_width();
     });
 
+    let sn_super = save_and_notify.clone();
+    let settings_super = settings_clone.clone();
+    super_switch.connect_active_notify(move |sw| {
+        settings_super.borrow_mut().gnome_super_override = sw.is_active();
+        settings_super.borrow().apply_gnome_super_override();
+        sn_super();
+    });
+
     // Height spin change
     let sn_height = save_and_notify.clone();
     let settings_height = settings_clone.clone();
@@ -609,6 +792,14 @@ pub fn show_settings_window(
     preview_switch.connect_active_notify(move |sw| {
         settings_preview.borrow_mut().file_preview_enabled = sw.is_active();
         sn_preview();
+    });
+
+    // Grid view change
+    let sn_grid = save_and_notify.clone();
+    let settings_grid = settings_clone.clone();
+    grid_switch.connect_active_notify(move |sw| {
+        settings_grid.borrow_mut().grid_view_enabled = sw.is_active();
+        sn_grid();
     });
 
     // Apps switch change
@@ -675,6 +866,62 @@ pub fn show_settings_window(
         sn_recent();
     });
 
+    // Packages switch change
+    let sn_packages = save_and_notify.clone();
+    let settings_packages = settings_clone.clone();
+    packages_switch.connect_active_notify(move |sw| {
+        settings_packages.borrow_mut().packages_enabled = sw.is_active();
+        sn_packages();
+    });
+
+    // Fonts switch change
+    let sn_fonts = save_and_notify.clone();
+    let settings_fonts = settings_clone.clone();
+    fonts_switch.connect_active_notify(move |sw| {
+        settings_fonts.borrow_mut().fonts_enabled = sw.is_active();
+        sn_fonts();
+    });
+
+    // Colors switch change
+    let sn_colors = save_and_notify.clone();
+    let settings_colors = settings_clone.clone();
+    colors_switch.connect_active_notify(move |sw| {
+        settings_colors.borrow_mut().colors_enabled = sw.is_active();
+        sn_colors();
+    });
+
+    // Clipboard switch change
+    let sn_clipboard = save_and_notify.clone();
+    let settings_clipboard = settings_clone.clone();
+    clipboard_switch.connect_active_notify(move |sw| {
+        settings_clipboard.borrow_mut().clipboard_enabled = sw.is_active();
+        sn_clipboard();
+    });
+
+    // Window Management switch change
+    let sn_window_mgmt = save_and_notify.clone();
+    let settings_window_mgmt = settings_clone.clone();
+    window_mgmt_switch.connect_active_notify(move |sw| {
+        settings_window_mgmt.borrow_mut().window_mgmt_enabled = sw.is_active();
+        sn_window_mgmt();
+    });
+
+    // Emojis switch change
+    let sn_emojis = save_and_notify.clone();
+    let settings_emojis = settings_clone.clone();
+    emojis_switch.connect_active_notify(move |sw| {
+        settings_emojis.borrow_mut().emojis_enabled = sw.is_active();
+        sn_emojis();
+    });
+
+    // Window Switcher switch change
+    let sn_window_switcher = save_and_notify.clone();
+    let settings_window_switcher = settings_clone.clone();
+    window_switcher_switch.connect_active_notify(move |sw| {
+        settings_window_switcher.borrow_mut().window_switcher_enabled = sw.is_active();
+        sn_window_switcher();
+    });
+
     // Web Custom URL entry change
     let settings_web_url = settings_clone.clone();
     let sn_web_url = save_and_notify.clone();
@@ -723,24 +970,18 @@ pub fn show_settings_window(
         sn_tfont();
     });
 
-    // Apply button handler to trigger python installer shortcut binding update
+    // Apply button handler to trigger GNOME shortcut registration
     let settings_shortcut = settings_clone.clone();
     apply_btn.connect_clicked(move |_| {
         let shortcut_val = shortcut_entry.text().to_string();
         settings_shortcut.borrow_mut().shortcut = shortcut_val.clone();
         let _ = settings_shortcut.borrow().save();
 
-        // Run install.py asynchronously in background to re-bind keyboard keys in GNOME settings!
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/home/atharva".to_string());
-        let project_dir = format!("{}/Projects/Spear", home);
-
-        let _ = std::process::Command::new("python3")
-            .arg("install.py")
-            .arg(&shortcut_val)
-            .current_dir(project_dir)
-            .spawn();
-
-        println!("GNOME hotkey update triggered: {}", shortcut_val);
+        if let Err(e) = crate::utils::register_gnome_shortcut(&shortcut_val) {
+            eprintln!("Failed to register GNOME hotkey: {}", e);
+        } else {
+            println!("GNOME hotkey successfully registered: {}", shortcut_val);
+        }
     });
 
     prefs_window.present();

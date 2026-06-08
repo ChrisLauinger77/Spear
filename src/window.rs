@@ -386,6 +386,7 @@ struct WindowState {
     entry: gtk4::Entry,
     search_icon: gtk4::Image,
     listbox: gtk4::ListBox,
+    flowbox: gtk4::FlowBox,
     scrolled_window: gtk4::ScrolledWindow,
     empty_label: gtk4::Label,
     status_label: gtk4::Label,
@@ -528,7 +529,19 @@ impl SpearWindow {
         if initial_layout_mode == "minimal" {
             listbox.add_css_class("minimal-mode");
         }
-        scrolled_window.set_child(Some(&listbox));
+        
+        let flowbox = gtk4::FlowBox::new();
+        flowbox.set_selection_mode(gtk4::SelectionMode::Single);
+        flowbox.set_max_children_per_line(4);
+        flowbox.set_min_children_per_line(4);
+        flowbox.set_homogeneous(true);
+        flowbox.add_css_class("grid-view");
+
+        if settings.borrow().grid_view_enabled {
+            scrolled_window.set_child(Some(&flowbox));
+        } else {
+            scrolled_window.set_child(Some(&listbox));
+        }
 
         // Preview Panel Container
         let preview_panel = gtk4::Box::new(gtk4::Orientation::Vertical, 0);
@@ -650,6 +663,8 @@ impl SpearWindow {
         let entry_clone = entry.clone();
         let search_icon_clone = search_icon.clone();
         let listbox_clone = listbox.clone();
+        let flowbox_clone = flowbox.clone();
+        let scrolled_window_clone = scrolled_window.clone();
         settings_btn.connect_clicked(move |_| {
             w_clone.hide();
             let s_clone = s_clone.clone();
@@ -661,11 +676,20 @@ impl SpearWindow {
             let entry_call = entry_clone.clone();
             let search_icon_call = search_icon_clone.clone();
             let listbox_call = listbox_clone.clone();
+            let flowbox_call = flowbox_clone.clone();
+            let scrolled_window_call = scrolled_window_clone.clone();
             crate::settings::show_settings_window(&w_clone_call, s_clone, move || {
                 let s = s_clone_2.borrow();
                 w_clone_inner.set_size_request(s.window_width, s.window_height);
                 c_clone.load_from_data(&generate_css(s.search_font_size, s.title_font_size, &s.theme, &s.color_scheme, s.window_width));
                 p_panel.set_visible(s.file_preview_enabled);
+
+                // Update Grid/List view
+                if s.grid_view_enabled {
+                    scrolled_window_call.set_child(Some(&flowbox_call));
+                } else {
+                    scrolled_window_call.set_child(Some(&listbox_call));
+                }
 
                 if s.layout_mode == "focused" || s.layout_mode == "minimal" {
                     search_icon_call.set_visible(false);
@@ -717,6 +741,7 @@ impl SpearWindow {
             entry,
             search_icon,
             listbox,
+            flowbox,
             scrolled_window,
             empty_label,
             status_label,
@@ -841,20 +866,25 @@ impl SpearWindow {
 
                 // Clone everything we need to update the UI without holding the borrow
                 let listbox = state.listbox.clone();
+                let flowbox = state.flowbox.clone();
                 let empty_label = state.empty_label.clone();
                 let scrolled_window = state.scrolled_window.clone();
                 let status_label = state.status_label.clone();
                 let action_btn = state.action_btn.clone();
                 let current_items = state.current_items.clone();
                 let query_empty = state.entry.text().trim().is_empty();
+                let grid_view_enabled = state.settings.borrow().grid_view_enabled;
                 let layout_mode = state.settings.borrow().layout_mode.clone();
                 
                 // Drop the borrow before we start mutating GtkListBox rows!
                 drop(state);
 
-                // 1. Clear ListBox rows (triggers row selection events safely)
+                // 1. Clear containers
                 while let Some(row) = listbox.row_at_index(0) {
                     listbox.remove(&row);
+                }
+                while let Some(child) = flowbox.child_at_index(0) {
+                    flowbox.remove(&child);
                 }
 
                 if current_items.is_empty() {
@@ -872,15 +902,23 @@ impl SpearWindow {
                 empty_label.set_visible(false);
                 scrolled_window.set_visible(true);
 
-                // 2. Add rows
-                for item in &current_items {
-                    let row = build_row(item, &layout_mode);
-                    listbox.append(&row);
-                }
-
-                // 3. Select first row (triggers connect_row_selected, which borrows state immutably safely!)
-                if let Some(first_row) = listbox.row_at_index(0) {
-                    listbox.select_row(Some(&first_row));
+                // 2. Add items
+                 if grid_view_enabled {
+                     for item in &current_items {
+                         let child = build_grid_item(item);
+                         flowbox.insert(&child, -1);
+                     }
+                     if let Some(first_child) = flowbox.child_at_index(0) {
+                         flowbox.select_child(&first_child);
+                     }
+                 } else {
+                    for item in &current_items {
+                        let row = build_row(item, &layout_mode);
+                        listbox.append(&row);
+                    }
+                    if let Some(first_row) = listbox.row_at_index(0) {
+                        listbox.select_row(Some(&first_row));
+                    }
                 }
 
                 let count = current_items.len();
@@ -970,8 +1008,13 @@ impl SpearWindow {
                     show_actions_popover(&state_clone);
                 } else {
                     // Trigger first action
-                    if let Some(selected_row) = window_state.listbox.selected_row() {
-                        let idx = selected_row.index();
+                    let selected_idx = if window_state.settings.borrow().grid_view_enabled {
+                        window_state.flowbox.selected_children().first().map(|c| c.index())
+                    } else {
+                        window_state.listbox.selected_row().map(|r| r.index())
+                    };
+
+                    if let Some(idx) = selected_idx {
                         if idx >= 0 && (idx as usize) < window_state.current_items.len() {
                             let item = window_state.current_items[idx as usize].clone();
                             let window = window_state.window.clone();
@@ -1004,13 +1047,35 @@ impl SpearWindow {
             }
 
             if keyval == gdk4::Key::Down {
-                navigate_list(&window_state.listbox, &window_state.entry, 1);
+                if window_state.settings.borrow().grid_view_enabled {
+                    navigate_grid(&window_state.flowbox, &window_state.entry, 4);
+                } else {
+                    navigate_list(&window_state.listbox, &window_state.entry, 1);
+                }
                 return glib::Propagation::Stop;
             }
 
             if keyval == gdk4::Key::Up {
-                navigate_list(&window_state.listbox, &window_state.entry, -1);
+                if window_state.settings.borrow().grid_view_enabled {
+                    navigate_grid(&window_state.flowbox, &window_state.entry, -4);
+                } else {
+                    navigate_list(&window_state.listbox, &window_state.entry, -1);
+                }
                 return glib::Propagation::Stop;
+            }
+
+            if keyval == gdk4::Key::Left {
+                if window_state.settings.borrow().grid_view_enabled {
+                    navigate_grid(&window_state.flowbox, &window_state.entry, -1);
+                    return glib::Propagation::Stop;
+                }
+            }
+
+            if keyval == gdk4::Key::Right {
+                if window_state.settings.borrow().grid_view_enabled {
+                    navigate_grid(&window_state.flowbox, &window_state.entry, 1);
+                    return glib::Propagation::Stop;
+                }
             }
 
             glib::Propagation::Proceed
@@ -1071,9 +1136,10 @@ impl SpearWindow {
             }
         });
 
-        // 8. Row Selected (update preview panel)
+        // 8. Row/Child Selected (update preview panel)
         let state_clone = self.state.clone();
-        self.state.borrow().listbox.connect_row_selected(move |_, row_opt| {
+        let listbox = self.state.borrow().listbox.clone();
+        listbox.connect_row_selected(move |_, row_opt| {
             let state = state_clone.borrow();
             if !state.settings.borrow().file_preview_enabled {
                 state.preview_panel.set_visible(false);
@@ -1082,6 +1148,58 @@ impl SpearWindow {
 
             if let Some(row) = row_opt {
                 let idx = row.index();
+                if idx >= 0 && (idx as usize) < state.current_items.len() {
+                    let item = &state.current_items[idx as usize];
+                    update_preview_pane(item, &state);
+                }
+            } else {
+                clear_preview_pane(&state);
+            }
+        });
+
+        let state_clone = self.state.clone();
+        let flowbox = self.state.borrow().flowbox.clone();
+        flowbox.connect_child_activated(move |_, child| {
+            let idx = child.index();
+            let state = state_clone.borrow();
+            if idx >= 0 && (idx as usize) < state.current_items.len() {
+                let item = state.current_items[idx as usize].clone();
+                let window = state.window.clone();
+                let popover = state.popover.clone();
+                let settings = state.settings.clone();
+                let css_provider = state.css_provider.clone();
+                let preview_panel = state.preview_panel.clone();
+                let entry = state.entry.clone();
+                let search_icon = state.search_icon.clone();
+                let listbox = state.listbox.clone();
+                
+                drop(state);
+                
+                execute_action(
+                    &item,
+                    0,
+                    &window,
+                    &popover,
+                    &settings,
+                    &css_provider,
+                    &preview_panel,
+                    &entry,
+                    &search_icon,
+                    &listbox,
+                );
+            }
+        });
+
+        let state_clone = self.state.clone();
+        flowbox.connect_selected_children_changed(move |fb| {
+            let state = state_clone.borrow();
+            if !state.settings.borrow().file_preview_enabled {
+                state.preview_panel.set_visible(false);
+                return;
+            }
+
+            if let Some(child) = fb.selected_children().first() {
+                let idx = child.index();
                 if idx >= 0 && (idx as usize) < state.current_items.len() {
                     let item = &state.current_items[idx as usize];
                     update_preview_pane(item, &state);
@@ -1252,14 +1370,67 @@ fn navigate_list(listbox: &gtk4::ListBox, entry: &gtk4::Entry, direction: i32) {
     }
 }
 
+fn navigate_grid(flowbox: &gtk4::FlowBox, entry: &gtk4::Entry, direction: i32) {
+    let children = flowbox.selected_children();
+    if let Some(selected) = children.first() {
+        let idx = selected.index();
+        if let Some(next) = flowbox.child_at_index(idx + direction) {
+            flowbox.select_child(&next);
+            next.grab_focus();
+            entry.grab_focus();
+        }
+    } else if let Some(first) = flowbox.child_at_index(0) {
+        flowbox.select_child(&first);
+    }
+}
+
+fn build_grid_item(item: &ResultItem) -> gtk4::FlowBoxChild {
+    let child = gtk4::FlowBoxChild::new();
+    let box_layout = gtk4::Box::new(gtk4::Orientation::Vertical, 8);
+    box_layout.set_margin_start(10);
+    box_layout.set_margin_end(10);
+    box_layout.set_margin_top(10);
+    box_layout.set_margin_bottom(10);
+    child.set_child(Some(&box_layout));
+
+    let icon_str = item.icon.as_deref().unwrap_or("system-run");
+    let icon = gtk4::Image::builder()
+        .pixel_size(48)
+        .halign(gtk4::Align::Center)
+        .build();
+
+    if icon_str.starts_with('/') && std::path::Path::new(icon_str).exists() {
+        let file = gio::File::for_path(icon_str);
+        let file_icon = gio::FileIcon::new(&file);
+        icon.set_from_gicon(&file_icon);
+    } else {
+        icon.set_icon_name(Some(icon_str));
+    }
+    box_layout.append(&icon);
+
+    let title = gtk4::Label::new(Some(&item.title));
+    title.set_halign(gtk4::Align::Center);
+    title.set_ellipsize(gtk4::pango::EllipsizeMode::End);
+    title.set_max_width_chars(12);
+    title.add_css_class("grid-title");
+    box_layout.append(&title);
+
+    child
+}
+
 fn show_actions_popover(state_rc: &Rc<RefCell<WindowState>>) {
     let state = state_rc.borrow();
-    let selected_row = state.listbox.selected_row();
-    if selected_row.is_none() {
+    let selected_idx = if state.settings.borrow().grid_view_enabled {
+        state.flowbox.selected_children().first().map(|c| c.index())
+    } else {
+        state.listbox.selected_row().map(|r| r.index())
+    };
+
+    if selected_idx.is_none() {
         return;
     }
 
-    let item_idx = selected_row.unwrap().index() as usize;
+    let item_idx = selected_idx.unwrap() as usize;
     if item_idx >= state.current_items.len() {
         return;
     }
